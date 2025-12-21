@@ -1,26 +1,59 @@
-class Assign:
-    def __init__(self, target, expr):
-        self.target = target
-        self.expr = expr
+from dataclasses import dataclass
 
 
-class While:
-    def __init__(self, condition, invariant, body, line_number):
-        self.condition = condition
-        self.invariant = invariant
-        self.body = body
-        self.line_number = line_number
+# Base classes
+@dataclass
+class Expr:
+    pass
 
 
-class If:
-    def __init__(self, condition, true_branch, else_branch):
-        self.condition = condition
-        self.true_branch = true_branch
-        self.else_branch = else_branch
+@dataclass
+class Stmt:
+    pass
 
 
-class Program:
-    def __init__(self, pre, post, stmts):
-        self.pre = pre
-        self.post = post
-        self.stmts = stmts
+@dataclass
+class Assign(Stmt):
+    """
+    represents: x = e
+    """
+
+    name: str  # The variable name on the LHS
+    expr: Expr  # The expression on the RHS
+
+
+@dataclass
+class If(Stmt):
+    """
+    Represents: if cond: then_stmt else: else_stmt
+    """
+
+    cond: Expr
+    then_stmt: Stmt
+    else_stmt: Stmt  # Can be an empty 'Seq' or 'Pass' if there is no else
+
+
+@dataclass
+class While(Stmt):
+    """
+    Represents:
+        # inv: ...
+        while cond: body
+
+    """
+
+    cond: Expr
+    inv: Expr  # The Loop Invariant formula
+    body: Stmt
+
+
+@dataclass
+class Seq(Stmt):
+    """
+    Represents: s1; s2
+
+    This splits the code into a 'head' (s1) and the 'rest' (s2).
+    """
+
+    s1: Stmt
+    s2: Stmt
