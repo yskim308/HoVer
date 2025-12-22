@@ -47,19 +47,21 @@ def verify_program(source_code, annotations, precondition_str, postcondition_str
         solver.add(z3.Not(z3_vc))  # Try to find counterexample
 
         result = solver.check()
-        if result == z3.unsat:
-            print("  ✓ VALID")
-        else:
-            print("  ✗ INVALID")
+        # if result == z3.unsat:
+        #     print("  VALID")
+        # else:
+        #     print("  ✗ INVALID")
+        #     print(f"  Counterexample: {solver.model()}")
+        #     all_valid = False
+        if result != z3.unsat:
+            print("unverified")
             print(f"  Counterexample: {solver.model()}")
             all_valid = False
+            break
 
         solver.pop()
 
-    print("\n" + "=" * 60)
     if all_valid:
-        print("✓ Program verified successfully!")
-    else:
-        print("✗ Verification failed!")
+        print("verified")
 
     return all_valid
