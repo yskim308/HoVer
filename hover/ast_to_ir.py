@@ -1,6 +1,6 @@
 import ast
 
-import ir
+from . import ir
 
 
 class ASTTranslator:
