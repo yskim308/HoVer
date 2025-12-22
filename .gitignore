@@ -2,3 +2,8 @@ submit.sh
 instruction.pdf
 .DS_Store
 ./hover/__init__.py
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pytest_cache/
