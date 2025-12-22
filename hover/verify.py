@@ -2,7 +2,7 @@ import ast
 
 import z3
 
-from . import ast_to_ir, vc_generator
+from . import ast_to_ir, ir, vc_generator
 from .ir_to_z3 import ir_to_z3
 
 
@@ -26,20 +26,11 @@ def verify_program(source_code, annotations, precondition_str, postcondition_str
     vcgen = vc_generator.VCGenerator()
     computed_precond = vcgen.generate(program_ir, postcond)
 
-    # VC1: Check that actual precondition implies computed precondition
-    vc_initial = ir.LogicOp(precond, "implies", computed_precond)
-    vcgen.vc_list.insert(0, ("Initial condition", vc_initial))
-
-    # Verify all VCs with Z3
-    print("Verification Conditions:")
-    print("=" * 60)
-
     z3_vars = {}
     solver = z3.Solver()
 
     all_valid = True
     for name, vc in vcgen.get_vcs():
-        print(f"\n{name}:")
         z3_vc = ir_to_z3(vc, z3_vars)
 
         # Check if VC is valid (always true)

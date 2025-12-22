@@ -3,17 +3,17 @@
 # You are free to add other files to organize your code, but keep in mind that
 # the entrypoint is *this file*.
 
+import sys
 from pathlib import Path
 
-from hover import ast_to_ir, parser
+from hover import parser
 
-print("Hello, world!")
+from .verify import verify_program
 
-file_path = Path("examples/sample/loop_invariant.py")
+if len(sys.argv) < 2:
+    print("Usage: python -m hover <path_to_file.py>")
+file_path = Path(sys.argv[1])
 source_code = file_path.read_text()
 annotations = parser.extract_annotations(source_code)
 
-translator = ast_to_ir.ASTTranslator(source_code, annotations)
-statements = translator.parse()
-
-print(statements)
+verify_program(source_code, annotations, annotations["pre"], annotations["post"])
