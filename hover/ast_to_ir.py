@@ -52,8 +52,9 @@ class ASTTranslator:
         if isinstance(node, ast.Constant):  # Python 3.8+ uses Constant for numbers
             if isinstance(node.value, int):
                 return E.Literal(node.value)
-            elif isinstance(node.value, bool):
+            if isinstance(node.value, bool):
                 return E.BoolConst(node.value)
+            raise ValueError(f"Unsupported constant: {node.value!r}")
 
         elif isinstance(node, ast.Name):
             return E.Var(node.id)
@@ -65,7 +66,8 @@ class ASTTranslator:
             return self._trans_compare(node)
 
         elif isinstance(node, ast.BoolOp):
-            return self._trans_boolop(node)
+            raise NotImplementedError("bool op not implemented yet")
+            # return self._trans_boolop(node)
 
         else:
             raise ValueError(f"Unsupported expression: {type(node).__name__}")
