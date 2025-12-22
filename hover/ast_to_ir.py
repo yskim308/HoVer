@@ -1,7 +1,6 @@
 import ast
 
-import expression as E  # for expressions,
-import representation as S  # for statements
+import ir
 
 
 class ASTTranslator:
@@ -14,7 +13,7 @@ class ASTTranslator:
         tree = ast.parse(self.source)
 
         if not tree.body:
-            return None  # Or a 'Pass' statement if you defined one
+            return ir.Skip
 
         return self.translate_stmt_list(tree.body)
 
@@ -32,7 +31,7 @@ class ASTTranslator:
         if rest is None:
             return first
         else:
-            return S.Seq(first, rest)
+            return ir.Seq(first, rest)
 
     def translate_stmt(self, node):
         """Dispatches to specific handlers based on node type."""
@@ -51,13 +50,13 @@ class ASTTranslator:
         """Recursively converts AST expressions to IR expressions."""
         if isinstance(node, ast.Constant):  # Python 3.8+ uses Constant for numbers
             if isinstance(node.value, int):
-                return E.Literal(node.value)
+                return ir.Literal(node.value)
             if isinstance(node.value, bool):
-                return E.BoolConst(node.value)
+                return ir.BoolConst(node.value)
             raise ValueError(f"Unsupported constant: {node.value!r}")
 
         elif isinstance(node, ast.Name):
-            return E.Var(node.id)
+            return ir.Var(node.id)
 
         elif isinstance(node, ast.BinOp):
             return self._trans_binop(node)
@@ -66,8 +65,10 @@ class ASTTranslator:
             return self._trans_compare(node)
 
         elif isinstance(node, ast.BoolOp):
-            raise NotImplementedError("bool op not implemented yet")
-            # return self._trans_boolop(node)
+            return self._trans_boolop(node)
+
+        elif isinstance(node, ast.UnaryOp):
+            return self._trans_unaryop(node)
 
         else:
             raise ValueError(f"Unsupported expression: {type(node).__name__}")
@@ -75,23 +76,21 @@ class ASTTranslator:
     # --- Specific Handlers ---
 
     def _trans_assign(self, node):
-        # [cite_start]Restriction: Only integer values allowed [cite: 20]
-        target = node.targets[0]  # We assume single assignment (x = 1, not x = y = 1)
+        target = node.targets[0]
         if not isinstance(target, ast.Name):
             raise ValueError("Assignments must be to simple variables.")
 
-        return S.Assign(target.id, self.translate_expr(node.value))
+        return ir.Assign(target.id, self.translate_expr(node.value))
 
     def _trans_if(self, node):
         # Recursively translate the 'then' block
         then_part = self.translate_stmt_list(node.body)
 
         # Recursively translate the 'else' block (if it exists)
-        else_part = self.translate_stmt_list(node.orelse) if node.orelse else None
+        else_part = self.translate_stmt_list(node.orelse) if node.orelse else ir.Seq()
 
-        # NOTE: If else_part is None, you might want to return a generic 'Pass' or handle it in VC generation.
         # For now, let's assume your S.If supports None or you wrap it in an empty Seq.
-        return S.If(self.translate_expr(node.test), then_part, else_part)
+        return ir.If(self.translate_expr(node.test), then_part, else_part)
 
     def _trans_while(self, node):
         # 1. Look for the invariant in our map
@@ -106,47 +105,101 @@ class ASTTranslator:
             )
 
         # 2. Parse the invariant string itself!
-        # This is tricky: The invariant is a string like "x > 0".
-        # We need to parse this string into an Expression IR too.
         inv_ast = ast.parse(inv_str, mode="eval").body
         inv_expr = self.translate_expr(inv_ast)
 
         body = self.translate_stmt_list(node.body)
 
-        return S.While(self.translate_expr(node.test), inv_expr, body)
+        return ir.While(self.translate_expr(node.test), inv_expr, body)
 
     def _trans_binop(self, node):
-        # [cite_start]Supported: +, -, * [cite: 21]
         op_map = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*"}
         op_type = type(node.op)
 
         if op_type not in op_map:
             raise ValueError(f"Unsupported arithmetic operator: {op_type}")
 
-        return E.BinOp(
+        return ir.BinOp(
             self.translate_expr(node.left),
             op_map[op_type],
             self.translate_expr(node.right),
         )
 
     def _trans_compare(self, node):
-        # [cite_start]Supported: <, <=, ==, >=, > [cite: 21]
-        # HANDLE CHAINED COMPARISONS: 0 < x < 10
-        if len(node.ops) > 1:
-            # You must unroll this into (0 < x) and (x < 10)
-            # This is complex; for a "dumb" start, you can raise an error
-            # or implement the "LogicOp(and)" splitting here.
-            raise NotImplementedError(
-                "Chained comparisons (0 < x < 10) require special handling."
-            )
+        """
+        Handle comparisons, including chained ones like 0 < x < 10.
+        Chained comparisons are converted to conjunctions:
+        0 < x < 10  =>  (0 < x) and (x < 10)
+        """
+        op_map = {
+            ast.Lt: "<",
+            ast.LtE: "<=",
+            ast.Eq: "==",
+            ast.GtE: ">=",
+            ast.Gt: ">",
+            ast.NotEq: "!=",
+        }
 
+        # Handle chained comparisons
+        if len(node.ops) > 1:
+            # Build chain: left op1 comparators[0] op2 comparators[1] ...
+            # Convert to: (left op1 comparators[0]) and (comparators[0] op2 comparators[1]) and ...
+            comparisons = []
+
+            prev_expr = self.translate_expr(node.left)
+
+            for op, comparator in zip(node.ops, node.comparators):
+                curr_expr = self.translate_expr(comparator)
+
+                op_type = type(op)
+                if op_type not in op_map:
+                    raise ValueError(f"Unsupported comparison operator: {op_type}")
+
+                comparisons.append(ir.Compare(prev_expr, op_map[op_type], curr_expr))
+                prev_expr = curr_expr
+
+            # Chain all comparisons with 'and'
+            result = comparisons[0]
+            for comp in comparisons[1:]:
+                result = ir.LogicOp(result, "and", comp)
+
+            return result
+
+        # Simple comparison (single operator)
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
 
-        op_map = {ast.Lt: "<", ast.LtE: "<=", ast.Eq: "==", ast.GtE: ">=", ast.Gt: ">"}
         op_type = type(node.ops[0])
-
         if op_type not in op_map:
             raise ValueError(f"Unsupported comparison operator: {op_type}")
 
-        return E.Compare(left, op_map[op_type], right)
+        return ir.Compare(left, op_map[op_type], right)
+
+    def _trans_boolop(self, node):
+        """
+        Handle boolean operators (and, or).
+        """
+        op_map = {ast.And: "and", ast.Or: "or"}
+        op_type = type(node.op)
+
+        if op_type not in op_map:
+            raise ValueError(f"Unsupported boolean operator: {op_type}")
+
+        # BoolOp can have multiple values: (a and b and c)
+        # We need to chain them: LogicOp(a, 'and', LogicOp(b, 'and', c))
+        values = [self.translate_expr(v) for v in node.values]
+
+        result = values[0]
+        for val in values[1:]:
+            result = ir.LogicOp(result, op_map[op_type], val)
+
+        return result
+
+    def _trans_unaryop(self, node):
+        """
+        Handle unary operators (mainly 'not').
+        """
+        if isinstance(node.op, ast.Not):
+            return ir.Not(self.translate_expr(node.operand))
+        else:
+            raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
