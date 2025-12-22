@@ -96,6 +96,11 @@ class Stmt:
 
 
 @dataclass
+class Skip(Stmt):
+    pass
+
+
+@dataclass
 class Assign(Stmt):
     """
     represents: x = e
@@ -113,7 +118,7 @@ class If(Stmt):
 
     cond: Expr
     then_stmt: Stmt
-    else_stmt: Stmt  # Can be an empty 'Seq' or 'Pass' if there is no else
+    else_stmt: Stmt = Skip()  # Can be an empty 'Seq' or 'Pass' if there is no else
 
 
 @dataclass
@@ -138,5 +143,5 @@ class Seq(Stmt):
     This splits the code into a 'head' (s1) and the 'rest' (s2).
     """
 
-    s1: Stmt
-    s2: Stmt
+    s1: Stmt = Skip()
+    s2: Stmt = Skip()
