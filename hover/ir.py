@@ -118,9 +118,7 @@ class If(Stmt):
 
     cond: Expr
     then_stmt: Stmt
-    else_stmt: Stmt = field(
-        default_factory=Skip
-    )  # Can be an empty 'Seq' or 'Pass' if there is no else
+    else_stmt: Stmt = field(default_factory=Skip)
 
 
 @dataclass

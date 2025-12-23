@@ -30,7 +30,6 @@ def verify_program(source_code, annotations, precondition_str, postcondition_str
     computed_precond = vcgen.generate(program_ir, postcond)
     # print(f"Computed Precondition: {computed_precond}")
 
-    # ⚠️ ADD THIS: Check initial condition
     vc_initial = ir.LogicOp(precond, "implies", computed_precond)
     all_vcs = [("Initial condition", vc_initial)] + vcgen.get_vcs()
 
