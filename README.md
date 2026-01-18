@@ -61,6 +61,30 @@ lastly, `verify.py` defines a function where given the source code, the annotati
 
 in `__main__.py` using `sys.argv` we get the program arguments, read the source code, parse the annotations, and then pass in the details into the `verify_program` function. 
 
+```mermaid
+sequenceDiagram
+    participant U as User/Source
+    participant V as verify.py
+    participant P as parser.py
+    participant AI as ast_to_ir.py
+    participant VG as vc_generator.py
+    participant Z3 as ir_to_z3.py
+
+    U->>V: Provide Source & Specs
+    V->>P: parse_annotations(magic_comments)
+    P-->>V: {pre, post, inv}
+    V->>AI: translate_to_ir(AST)
+    AI-->>V: IR Objects
+    V->>VG: generate_vc(IR, post)
+    VG-->>V: List of VCs
+    loop For each VC
+        V->>Z3: convert_to_z3(VC)
+        Z3-->>V: Z3 Expr
+        V->>V: solver.check()
+    end
+    V-->>U: Verified / Counterexample
+```
+
 # example hoare logic code 
 
 
